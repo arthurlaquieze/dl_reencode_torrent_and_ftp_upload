@@ -1,0 +1,11 @@
+{
+  "name": "my-app",
+  "version": "1.0.0",
+  "description": "App to download, convert and upload torrent files",
+  "main": "batch_reencode.js",
+  "dependencies": {
+    "torrent-stream": "latest",
+    "basic-ftp": "latest",
+    "fs": "latest"
+  }
+}
