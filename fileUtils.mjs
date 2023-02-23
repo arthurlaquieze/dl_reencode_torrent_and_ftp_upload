@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import path from "path";
 
 const deleteFile = (path) => {
   /**
@@ -14,6 +15,25 @@ const deleteFile = (path) => {
     }
   });
 };
+
+function getAllFiles(dirPath, arrayOfFiles) {
+  /**
+   * This function recursively searches for all files inside a directory and its sub dirs.
+   */
+  const files = fs.readdirSync(dirPath);
+
+  arrayOfFiles = arrayOfFiles || [];
+
+  files.forEach(function (file) {
+    if (fs.statSync(path.join(dirPath, file)).isDirectory()) {
+      arrayOfFiles = getAllFiles(path.join(dirPath, file), arrayOfFiles);
+    } else {
+      arrayOfFiles.push(path.join(dirPath, file));
+    }
+  });
+
+  return arrayOfFiles;
+}
 
 const getSeasonAndEpisodeNumber = (path) => {
   /**
@@ -59,4 +79,4 @@ const generateFileName = (season, episode) => {
   return `S${season}/SouthPark_s${season}e${episode}_720p_MULTI_x265.mkv`;
 };
 
-export { deleteFile, getSeasonAndEpisodeNumber, generateFileName };
+export { deleteFile, getSeasonAndEpisodeNumber, generateFileName, getAllFiles };

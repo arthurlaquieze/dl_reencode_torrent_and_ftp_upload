@@ -7,6 +7,7 @@ import {
   deleteFile,
   getSeasonAndEpisodeNumber,
   generateFileName,
+  getAllFiles,
 } from "./fileUtils.mjs";
 import uploadFile from "./ftpUpload.mjs";
 
@@ -14,6 +15,8 @@ import uploadFile from "./ftpUpload.mjs";
 const torrentFile = fs.readFileSync("./torrentfile.torrent");
 
 const ftpPath = "/files/Anime/southpark";
+
+// TODO: move to system temp dir
 const tempDir = "./temp/";
 
 const presetFilePath = "./south_park_720p_AAC.json";
@@ -46,7 +49,7 @@ class IndexHandler {
   get nextIndex() {
     let nextIndex = 0;
 
-    // find the next index that is not in handledIndexes nor processingIndexes
+    // find the next index that is not in handledIndexes nor processingIndexes nor failedIndexes
     while (
       this.handledIndexes.includes(nextIndex) ||
       this.processingIndexes.includes(nextIndex) ||
@@ -116,29 +119,53 @@ class IndexHandler {
   }
 }
 
+// function that iterates over engine tmp files and delete them if they are in the handledFiles json
+const deleteHandledFiles = () => {
+  const handledFiles = JSON.parse(fs.readFileSync("./handledFiles.json"));
+  // remove the two last elements as their pieces might be needed for the next file
+  // TODO: remove this and find a better way to handle this
+  // A bug might be present if the current idx being processed is NOT after the last handled file idx
+  handledFiles.pop();
+  handledFiles.pop();
+
+  // iterate over files in /private/tmp/torrent-stream/torrenthash dir
+  const engineTempDir = `/tmp/torrent-stream/${engine.torrent.infoHash}/`;
+
+  // get all files in engine temp dir
+  const files = getAllFiles(engineTempDir);
+
+  console.log("deleting handled files from torrent-stream tmp folder...");
+  files.forEach((file) => {
+    if (handledFiles.includes(path.basename(file))) {
+      deleteFile(file);
+    }
+  });
+};
+
 engine.on("ready", () => {
   const files = engine.files;
 
-  IndexHandler = new IndexHandler(files.map((file) => file.name));
-  IndexHandler.loadHandledIndexes();
+  const indexHandler = new IndexHandler(files.map((file) => file.name));
+  indexHandler.loadHandledIndexes();
 
   const nextFile = () => {
-    const index = IndexHandler.nextIndex;
+    const index = indexHandler.nextIndex;
 
     if (index === null) {
       console.log("All files handled, exiting...");
+      engine.remove();
       engine.destroy();
       return;
     }
 
+    deleteHandledFiles();
+
     const file = files[index];
 
-    // log file name
     console.log(`Starting to handle ${file.name}, index ${index}...`);
 
     const temporaryTorrentPath = `${tempDir}${file.name}`;
 
-    file.select();
     const stream = file.createReadStream();
     const output = fs.createWriteStream(temporaryTorrentPath);
 
@@ -187,9 +214,9 @@ engine.on("ready", () => {
           deleteFile(inputPath);
           deleteFile(outputPath);
 
-          IndexHandler.failedProcessingIndex(index);
+          indexHandler.failedProcessingIndex(index);
 
-          nextFile();
+          // nextFile();
         } else {
           console.log(`HandBrakeCLI process finished successfully.`);
           console.log("starting upload to ftp server...");
@@ -203,7 +230,9 @@ engine.on("ready", () => {
               deleteFile(inputPath);
               deleteFile(outputPath);
 
-              IndexHandler.doneHandlingIndex(index);
+              // file.deselect();
+
+              indexHandler.doneHandlingIndex(index);
             })
             .catch((err) => {
               console.log(err);
@@ -217,7 +246,9 @@ engine.on("ready", () => {
                   deleteFile(inputPath);
                   deleteFile(outputPath);
 
-                  IndexHandler.doneHandlingIndex(index);
+                  // file.deselect();
+
+                  indexHandler.doneHandlingIndex(index);
                 })
                 // if it fails again, delete the temporary files and give up
                 .catch((err) => {
@@ -227,7 +258,9 @@ engine.on("ready", () => {
                   deleteFile(inputPath);
                   deleteFile(outputPath);
 
-                  IndexHandler.failedProcessingIndex(index);
+                  // file.deselect();
+
+                  indexHandler.failedProcessingIndex(index);
                 });
             });
         }
