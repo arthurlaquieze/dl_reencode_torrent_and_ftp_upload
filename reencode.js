@@ -1,10 +1,13 @@
-const torrentStream = require("torrent-stream");
-const ftp = require("basic-ftp");
-const fs = require("fs");
-const { spawn } = require("child_process");
-const path = require("path");
+import torrentStream from "torrent-stream";
+import * as fs from "fs";
+import { spawn } from "child_process";
+import * as path from "path";
 
-import deleteFile, { getSeasonAndEpisodeNumber } from "./fileUtils.mjs";
+import {
+  deleteFile,
+  getSeasonAndEpisodeNumber,
+  generateFileName,
+} from "./fileUtils.mjs";
 import uploadFile from "./ftpUpload.mjs";
 
 // load torrent from file as a buffer
@@ -36,16 +39,18 @@ class IndexHandler {
   constructor(filenames) {
     this.handledIndexes = [0];
     this.processingIndexes = [];
+    this.failedIndexes = [];
     this.filenames = filenames;
   }
 
   get nextIndex() {
-    nextIndex = 0;
+    let nextIndex = 0;
 
     // find the next index that is not in handledIndexes nor processingIndexes
     while (
       this.handledIndexes.includes(nextIndex) ||
-      this.processingIndexes.includes(nextIndex)
+      this.processingIndexes.includes(nextIndex) ||
+      this.failedIndexes.includes(nextIndex)
     ) {
       if (nextIndex >= this.filenames.length) {
         return null;
@@ -54,7 +59,25 @@ class IndexHandler {
       nextIndex++;
     }
 
+    this.processingIndexes.push(nextIndex);
+
     return nextIndex;
+  }
+
+  failedProcessingIndex(index) {
+    /** call this function when you've failed to process index */
+
+    this.failedIndexes.push(index);
+
+    this.processingIndexes.splice(this.processingIndexes.indexOf(index), 1);
+
+    // save failed indexes to file
+    this.saveFailedIndexes();
+  }
+
+  saveFailedIndexes() {
+    const json = JSON.stringify(this.fileNamesFromIndexes(this.failedIndexes));
+    fs.writeFileSync("./failedFiles.json", json);
   }
 
   doneHandlingIndex(index) {
@@ -68,8 +91,8 @@ class IndexHandler {
     this.processingIndexes.splice(this.processingIndexes.indexOf(index), 1);
   }
 
-  get handledFileNames() {
-    return this.handledIndexes.map((index) => this.filenames[index]);
+  fileNamesFromIndexes(indexes) {
+    return indexes.map((index) => this.filenames[index]);
   }
 
   indexesFromFilenames(filenames) {
@@ -77,13 +100,17 @@ class IndexHandler {
   }
 
   saveHandledIndexes() {
-    const json = JSON.stringify(this.handledFileNames(this.handledIndexes));
-    fs.writeFileSync("./handled_files.json", json);
+    const json = JSON.stringify(this.fileNamesFromIndexes(this.handledIndexes));
+    fs.writeFileSync("./handledFiles.json", json);
   }
 
   loadHandledIndexes() {
-    const json = fs.readFileSync("./handled_files.json");
-    handledFiles = JSON.parse(json);
+    // load handled indexes from file, if it exists
+    if (!fs.existsSync("./handledFiles.json")) {
+      return;
+    }
+    const json = fs.readFileSync("./handledFiles.json");
+    const handledFiles = JSON.parse(json);
 
     this.handledIndexes = this.indexesFromFilenames(handledFiles);
   }
@@ -96,7 +123,7 @@ engine.on("ready", () => {
   IndexHandler.loadHandledIndexes();
 
   const nextFile = () => {
-    index = IndexHandler.nextIndex;
+    const index = IndexHandler.nextIndex;
 
     if (index === null) {
       console.log("All files handled, exiting...");
@@ -107,7 +134,7 @@ engine.on("ready", () => {
     const file = files[index];
 
     // log file name
-    console.log(`Starting to handle ${file.name}...`);
+    console.log(`Starting to handle ${file.name}, index ${index}...`);
 
     const temporaryTorrentPath = `${tempDir}${file.name}`;
 
@@ -127,7 +154,9 @@ engine.on("ready", () => {
     }
 
     output.on("finish", () => {
-      console.log("File downloaded successfully. Starting reencoding...");
+      console.log(
+        `File ${index} downloaded successfully. Starting reencoding...`
+      );
 
       const inputPath = temporaryTorrentPath;
       const outputPath = path.join(tempDir, newFileName);
@@ -152,15 +181,20 @@ engine.on("ready", () => {
       handbrake.on("close", (code) => {
         if (code !== 0) {
           console.error(`HandBrakeCLI process exited with code ${code}`);
+          console.error(`failed to process file ${index}`);
           console.error("deleting temporary files...");
 
           deleteFile(inputPath);
           deleteFile(outputPath);
 
+          IndexHandler.failedProcessingIndex(index);
+
           nextFile();
         } else {
           console.log(`HandBrakeCLI process finished successfully.`);
           console.log("starting upload to ftp server...");
+
+          nextFile();
 
           uploadFile(outputPath, path.join(ftpPath, newFileName))
             .then((message) => {
@@ -169,20 +203,21 @@ engine.on("ready", () => {
               deleteFile(inputPath);
               deleteFile(outputPath);
 
-              // IndexHandler.doneHandlingIndex(index);
-              // nextFile();
+              IndexHandler.doneHandlingIndex(index);
             })
             .catch((err) => {
               console.log(err);
-
               console.log("upload failed, trying again...");
+
               // try uploading again
-              uploadFile(outputPath, `${ftpPath}/${file.name}`)
+              uploadFile(outputPath, path.join(ftpPath, newFileName))
                 .then((message) => {
                   console.log(message);
 
                   deleteFile(inputPath);
                   deleteFile(outputPath);
+
+                  IndexHandler.doneHandlingIndex(index);
                 })
                 // if it fails again, delete the temporary files and give up
                 .catch((err) => {
@@ -191,11 +226,14 @@ engine.on("ready", () => {
                   console.log("upload failed, deleting temporary files...");
                   deleteFile(inputPath);
                   deleteFile(outputPath);
+
+                  IndexHandler.failedProcessingIndex(index);
                 });
             });
         }
       });
     });
   };
+
   nextFile();
 });

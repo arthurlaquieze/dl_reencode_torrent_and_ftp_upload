@@ -10,7 +10,7 @@ const deleteFile = (path) => {
     if (err) {
       console.error(err);
     } else {
-      console.log(`Temporary file ${source_path} deleted successfully.`);
+      console.log(`Temporary file ${path} deleted successfully.`);
     }
   });
 };

@@ -1,12 +1,14 @@
 {
-  "name": "batch_reencode",
-  "version": "0.0.1",
+  "name": "reencode_and_upload_torrent_contents",
+  "version": "0.1.1",
   "type": "module",
-  "description": "App to download, convert and upload torrent files",
+  "description": "App to download, convert and upload torrent files containing video files of a TV show",
   "main": "reencode.js",
   "dependencies": {
     "torrent-stream": "latest",
     "basic-ftp": "latest",
-    "fs": "latest"
+    "fs": "latest",
+    "path": "latest",
+    "child_process": "latest"
   }
 }

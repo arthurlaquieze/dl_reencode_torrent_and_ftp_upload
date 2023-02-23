@@ -1,8 +1,8 @@
 import * as ftp from "basic-ftp";
 import { dirname } from "path";
 
-// load ftp credentials from the config file
-const ftpConfig = require("./ftp_credentials.json");
+// import ftp credentials from the config file
+import ftpConfig from "./ftpCredentials.json" assert { type: "json" };
 
 const uploadFile = async (sourcePath, destinationPath) => {
   const client = new ftp.Client();
