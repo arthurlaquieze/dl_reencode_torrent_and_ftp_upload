@@ -19,8 +19,6 @@ const ftpPath = "/files/Anime/southpark";
 // TODO: move to system temp dir
 const tempDir = "./temp/";
 
-const presetFilePath = "./south_park_720p_AAC.json";
-
 // create temp dir if not exists
 if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir);
@@ -175,10 +173,22 @@ engine.on("ready", () => {
     const { season, episode } = getSeasonAndEpisodeNumber(file.name);
     const newFileName = generateFileName(season, episode);
 
+    let presetFilePath;
+    let presetName;
+    if (parseInt(season, 10) < 15) {
+      presetFilePath = "./south_park_720p_AAC.json";
+      presetName = "south_park_720p_AAC";
+    } else {
+      presetFilePath = "./south_park_1080p_AAC.json";
+      presetName = "south_park_1080p_AAC";
+    }
+
     const parentDir = path.join(tempDir, path.dirname(newFileName));
     if (!fs.existsSync(parentDir)) {
       fs.mkdirSync(parentDir);
     }
+
+    // TODO: handle errors when out of space, ie restart the whole thing
 
     output.on("finish", () => {
       console.log(
@@ -192,7 +202,7 @@ engine.on("ready", () => {
         "--preset-import-file",
         `${presetFilePath}`,
         "-Z",
-        "south_park_720p_AAC",
+        `${presetName}`,
         "-i",
         inputPath,
         "-o",
@@ -215,8 +225,6 @@ engine.on("ready", () => {
           deleteFile(outputPath);
 
           indexHandler.failedProcessingIndex(index);
-
-          // nextFile();
         } else {
           console.log(`HandBrakeCLI process finished successfully.`);
           console.log("starting upload to ftp server...");
@@ -229,8 +237,6 @@ engine.on("ready", () => {
 
               deleteFile(inputPath);
               deleteFile(outputPath);
-
-              // file.deselect();
 
               indexHandler.doneHandlingIndex(index);
             })
@@ -246,8 +252,6 @@ engine.on("ready", () => {
                   deleteFile(inputPath);
                   deleteFile(outputPath);
 
-                  // file.deselect();
-
                   indexHandler.doneHandlingIndex(index);
                 })
                 // if it fails again, delete the temporary files and give up
@@ -257,8 +261,6 @@ engine.on("ready", () => {
                   console.log("upload failed, deleting temporary files...");
                   deleteFile(inputPath);
                   deleteFile(outputPath);
-
-                  // file.deselect();
 
                   indexHandler.failedProcessingIndex(index);
                 });
