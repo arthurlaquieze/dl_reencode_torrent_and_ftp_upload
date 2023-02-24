@@ -6,3 +6,6 @@ temp
 node_modules
 
 *.torrent
+
+# credentials
+ftpCredentials.json
