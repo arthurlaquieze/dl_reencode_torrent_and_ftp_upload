@@ -171,17 +171,21 @@ engine.on("ready", () => {
 
     // get new file name and create its parent dir if needed
     const { season, episode } = getSeasonAndEpisodeNumber(file.name);
-    const newFileName = generateFileName(season, episode);
 
     let presetFilePath;
     let presetName;
+    let quality;
     if (parseInt(season, 10) < 15) {
       presetFilePath = "./south_park_720p_AAC.json";
       presetName = "south_park_720p_AAC";
+      quality = "720p";
     } else {
       presetFilePath = "./south_park_1080p_AAC.json";
       presetName = "south_park_1080p_AAC";
+      quality = "1080p";
     }
+
+    const newFileName = generateFileName(season, episode, quality);
 
     const parentDir = path.join(tempDir, path.dirname(newFileName));
     if (!fs.existsSync(parentDir)) {

@@ -63,12 +63,13 @@ const getSeasonAndEpisodeNumber = (path) => {
   return { season: season, episode: episode };
 };
 
-const generateFileName = (season, episode) => {
+const generateFileName = (season, episode, quality) => {
   /**
    * This function generates a new file name for the reencoded file.
    *
-   * @param {string} season - The season number
-   * @param {string} episode - The episode number
+   * @param {string} season - The season number, like '01' or '12'
+   * @param {string} episode - The episode number, like '01' or '12'
+   * @param {string} quality - The quality of the reencoded file, like '720p' or '1080p'
    *
    * @returns {string} The new file name
    *
@@ -76,7 +77,7 @@ const generateFileName = (season, episode) => {
    *  generateFileName('13', '02') should return 'S13/SouthPark_s01e01_1080p_MULTI_x265.mkv'
    */
 
-  return `S${season}/SouthPark_s${season}e${episode}_720p_MULTI_x265.mkv`;
+  return `S${season}/SouthPark_s${season}e${episode}_${quality}_MULTI_x265.mkv`;
 };
 
 export { deleteFile, getSeasonAndEpisodeNumber, generateFileName, getAllFiles };
