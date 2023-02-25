@@ -53,11 +53,11 @@ class IndexHandler {
       this.processingIndexes.includes(nextIndex) ||
       this.failedIndexes.includes(nextIndex)
     ) {
+      nextIndex++;
+
       if (nextIndex >= this.filenames.length) {
         return null;
       }
-
-      nextIndex++;
     }
 
     this.processingIndexes.push(nextIndex);
@@ -151,7 +151,6 @@ engine.on("ready", () => {
 
     if (index === null) {
       console.log("All files handled, exiting...");
-      engine.remove();
       engine.destroy();
       return;
     }
@@ -159,6 +158,10 @@ engine.on("ready", () => {
     deleteHandledFiles();
 
     const file = files[index];
+
+    if (index + 1 < files.length) {
+      files[index + 1]?.select();
+    } // select next file to downloade
 
     console.log(`Starting to handle ${file.name}, index ${index}...`);
 
@@ -228,10 +231,14 @@ engine.on("ready", () => {
           deleteFile(inputPath);
           deleteFile(outputPath);
 
+          file.deselect();
+
           indexHandler.failedProcessingIndex(index);
         } else {
           console.log(`HandBrakeCLI process finished successfully.`);
           console.log("starting upload to ftp server...");
+
+          file.deselect();
 
           nextFile();
 
